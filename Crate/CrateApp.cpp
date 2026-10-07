@@ -84,6 +84,8 @@ private:
     void BuildRenderItems();
     void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
     void CreateBoxGeometry();
+    void AnimateFlowerBed(float dt);
+    void CrateApp::GetAnimInfo();
 
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
@@ -127,6 +129,9 @@ private:
     XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
     XMFLOAT4X4 mProj = MathHelper::Identity4x4();
+
+    std::vector<XMFLOAT4X4> FlowerBedWorlds = {};
+    std::vector<int> FlowerBedInd = {};
 
     float mTheta = 1.3f * XM_PI;
     float mPhi = 0.4f * XM_PI;
@@ -194,6 +199,8 @@ bool CrateApp::Initialize()
 
     FlushCommandQueue();
 
+    GetAnimInfo();
+
     return true;
 }
 
@@ -224,6 +231,7 @@ void CrateApp::Update(const GameTimer& gt)
     UpdateObjectCBs(gt);
     UpdateMaterialCBs(gt);
     UpdateMainPassCB(gt);
+    AnimateFlowerBed(gt.DeltaTime());
 }
 
 void CrateApp::Draw(const GameTimer& gt)
@@ -1114,4 +1122,46 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> CrateApp::GetStaticSamplers()
         linearWrap, linearClamp,
         anisotropicWrap, anisotropicClamp
     };
+}
+
+void CrateApp::AnimateFlowerBed(float dt)
+{
+    for (int i = 0; i < FlowerBedWorlds.size(); ++i) 
+    {
+        auto mFlowerBedRitem = &mAllRitems[FlowerBedInd[i]];
+
+        static float time = 0.0f;
+        time += dt;
+
+        // Пульсация
+        float scaleY = 1.0f + 0.5f * sinf(time * 1.3f);
+
+        // Загружаем исходный World
+        XMMATRIX baseWorld = XMLoadFloat4x4(&FlowerBedWorlds[i]);
+
+        // Масштабируем объект относительно его локальных координат
+        XMMATRIX scale = XMMatrixScaling(1.0f, scaleY, 1.0f);
+
+        // Сначала масштабирование, затем исходное положение объекта
+        XMMATRIX world = baseWorld * scale;
+
+        XMStoreFloat4x4(
+            &mFlowerBedRitem->get()->World,
+            world
+        );
+
+        mFlowerBedRitem->get()->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+void CrateApp::GetAnimInfo() 
+{
+    for (int i = 0; i < mAllRitems.size(); ++i)
+    {
+        if (mAllRitems[i].get()->Mat->MatCBIndex == 3 ) 
+        {
+            FlowerBedInd.push_back(i);
+            FlowerBedWorlds.push_back(mAllRitems[i].get()->World);
+        }
+    }
 }
