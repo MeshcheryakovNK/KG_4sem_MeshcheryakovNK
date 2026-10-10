@@ -35,6 +35,13 @@ public:
         UINT lightCount,
         UINT lightStrideBytes);
 
+    void BeginTransparentWaterPass(
+        ID3D12GraphicsCommandList* cmdList,
+        D3D12_CPU_DESCRIPTOR_HANDLE backBufferRtv,
+        D3D12_CPU_DESCRIPTOR_HANDLE dsv,
+        D3D12_GPU_VIRTUAL_ADDRESS passCbAddress,
+        bool wireframe);
+
 private:
     void BuildGeometryRootSignature();
     void BuildLightingRootSignature();
@@ -61,4 +68,6 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mGeometryPSO = nullptr;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mGeometryWireframePSO = nullptr;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mLightingPSO = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mWaterTransparentPSO = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mWaterTransparentWireframePSO = nullptr;
 };
