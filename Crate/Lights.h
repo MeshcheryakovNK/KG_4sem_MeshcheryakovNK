@@ -4,7 +4,7 @@
 #include <cstdint>
 
 constexpr std::uint32_t kDeferredDirectionalLightCount = 1;
-constexpr std::uint32_t kDeferredPointLightCount = 1;
+constexpr std::uint32_t kDeferredPointLightCount = 256;
 constexpr std::uint32_t kDeferredSpotLightCount = 2;
 constexpr std::uint32_t kDeferredTotalLightCount =
     kDeferredDirectionalLightCount + kDeferredPointLightCount + kDeferredSpotLightCount;

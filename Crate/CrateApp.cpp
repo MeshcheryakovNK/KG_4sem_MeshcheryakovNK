@@ -54,6 +54,19 @@ struct SubmeshData
     SubmeshGeometry Geometry;
 };
 
+struct AABB
+{
+    XMFLOAT3 Min;
+    XMFLOAT3 Max;
+};
+
+bool IsInsideAABB(const XMFLOAT3& p, const AABB& box)
+{
+    return p.x >= box.Min.x && p.x <= box.Max.x &&
+        p.y >= box.Min.y && p.y <= box.Max.y &&
+        p.z >= box.Min.z && p.z <= box.Max.z;
+}
+
 class CrateApp : public D3DApp
 {
 public:
@@ -149,8 +162,10 @@ private:
     std::array<SpotLightSource, kDeferredSpotLightCount> mSpotLights;
 
     float mSpawnAccumulator = 0.0f;
-    std::array<float, kDeferredPointLightCount> mFallingVelY{};
+
+    std::array<XMFLOAT3, kDeferredPointLightCount> mLightVelocity{};
     std::array<bool, kDeferredPointLightCount> mFallingActive{};
+
     UINT mActivePointLights = 0;
 
     bool mGeometryWireframe = false;
@@ -193,8 +208,8 @@ CrateApp::CrateApp(HINSTANCE hInstance)
         mPointLights[i].FalloffStart = 0.6f;
         mPointLights[i].FalloffEnd = 8.0f;
         mPointLights[i].Position = { 0.0f, 10000.0f, 0.0f };
-        mFallingActive[i] = true;
-        mFallingVelY[i] = 0.0f;
+        mFallingActive[i] = false;
+        mLightVelocity[i] = { 0.0f,  0.0f,  0.0f };
     }
 
     mSpotLights[0].Position = { 0.0f, 12.0f, -30.0f };
@@ -302,48 +317,151 @@ void CrateApp::Update(const GameTimer& gt)
         mF3KeyDown = false;
     }
 
-    if (!mFallingActive[0])
-    {
-        mFallingActive[0] = true;
-        mFallingVelY[0] = 0.0f;
-        mPointLights[0].Position = { 6.0f, 20.0f, 0.0f };
-    }
 
-    mSpawnAccumulator += gt.DeltaTime();
-    while (mSpawnAccumulator >= 1.0f)
+    // Настройки стрельбы
+    constexpr float fireInterval = 0.08f; // Интервал между лампочками
+    constexpr float launchSpeed = 125.0f;  // Начальная скорость
+    constexpr float gravity = 9.8f;       // Ускорение свободного падения
+    constexpr float floorY = -1.0f;       // Уровень земли
+    constexpr float stepSize = 0.05f;
+
+    // Направление взгляда камеры.
+    // Камера смотрит из mEyePos в начало координат.
+    XMVECTOR cameraPos = XMLoadFloat3(&mEyePos);
+    XMVECTOR cameraDir = XMVector3Normalize(
+        XMVectorNegate(cameraPos)
+    );
+
+    XMFLOAT3 direction;
+    XMStoreFloat3(&direction, cameraDir);
+
+    // Стреляем только пока пробел зажат.
+    if ((GetAsyncKeyState(VK_SPACE) & 0x8000) != 0)
     {
-        mSpawnAccumulator -= 1.0f;
-        for (UINT i = 0; i < kDeferredPointLightCount; ++i)
+        mSpawnAccumulator += gt.DeltaTime();
+
+        while (mSpawnAccumulator >= fireInterval)
         {
-            if (!mFallingActive[i])
+            mSpawnAccumulator -= fireInterval;
+
+            // Ищем свободный слот для новой лампочки.
+            for (UINT i = 0; i < kDeferredPointLightCount; ++i)
             {
-                mFallingActive[i] = true;
-                mFallingVelY[i] = 0.0f;
-                mPointLights[i].Position = { 6.0f, 20.0f, 0.0f };
-                break;
+                if (!mFallingActive[i])
+                {
+                    mFallingActive[i] = true;
+
+                    // Появление немного впереди камеры.
+                    constexpr float spawnOffset = 1.0f;
+
+                    mPointLights[i].Position = {
+                        mEyePos.x + direction.x * spawnOffset,
+                        mEyePos.y + direction.y * spawnOffset,
+                        mEyePos.z + direction.z * spawnOffset
+                    };
+
+                    // Начальная скорость направлена по взгляду.
+                    mLightVelocity[i] = {
+                        direction.x * launchSpeed,
+                        direction.y * launchSpeed,
+                        direction.z * launchSpeed
+                    };
+
+                    break;
+                }
             }
         }
     }
+    else
+    {
+        // Не накапливаем время, пока стрельба выключена.
+        mSpawnAccumulator = 0.0f;
+    }
 
-    constexpr float fallSpeed = 21.0f;
-    constexpr float floorY = -1.0f;
+    // Движение лампочек и столкновение с землёй.
+    const float dt = gt.DeltaTime();
+
+    const AABB walls[] = {
+    {
+        { -35.0f, 0.0f, 19.0f },
+        { 35.0f, 30.0f,  20.0f }
+    },
+    {
+        { -35.0f, 0.0f,  -20.0f },
+        { 35.0f, 30.0f, -19.0f }
+    },
+    {
+        { 34.0f, 0.0f, -20.0f },
+        { 35.0f, 30.0f,  20.0f }
+    },
+    {
+        { -35.0f, 0.0f,  -20.0f },
+        { -33.0f, 30.0f, 20.0f }
+    }
+    };
+
     for (UINT i = 0; i < kDeferredPointLightCount; ++i)
     {
         if (!mFallingActive[i])
             continue;
 
-        auto& L = mPointLights[i];
-        if (L.Position.y <= floorY + 1e-3f)
-            continue;
+        auto& light = mPointLights[i];
+        auto& velocity = mLightVelocity[i];
 
-        mFallingVelY[i] = -fallSpeed;
-        L.Position.y += mFallingVelY[i] * gt.DeltaTime();
-        if (L.Position.y <= floorY)
+        // Лампочка уже остановилась.
+        if (velocity.x == 0.0f &&
+            velocity.y == 0.0f &&
+            velocity.z == 0.0f)
         {
-            L.Position.y = floorY;
-            mFallingVelY[i] = 0.0f;
+            continue;
+        }
+
+        float remaining = dt;
+
+        while (remaining > 0.0f)
+        {
+            float h = (remaining < stepSize) ? remaining : stepSize;
+            remaining -= h;
+
+            velocity.y -= gravity * h;
+
+            XMFLOAT3 next = {
+                light.Position.x + velocity.x * h,
+                light.Position.y + velocity.y * h,
+                light.Position.z + velocity.z * h
+            };
+
+            // Столкновение с землёй.
+            if (next.y <= floorY)
+            {
+                light.Position.y = floorY;
+                velocity = { 0.0f, 0.0f, 0.0f };
+                break;
+            }
+
+            // Столкновение со стенами.
+            bool collided = false;
+
+            for (const auto& wall : walls)
+            {
+                if (IsInsideAABB(next, wall))
+                {
+                    collided = true;
+                    break;
+                }
+            }
+
+            if (collided)
+            {
+                // Оставляем лампочку в предыдущей позиции.
+                velocity = { 0.0f, 0.0f, 0.0f };
+                break;
+            }
+
+            light.Position = next;
         }
     }
+
     UpdateDeferredLightCB();
 }
 
@@ -1200,7 +1318,8 @@ void CrateApp::BuildRenderItems()
     for (auto& e : mAllRitems)
     {
         if (e->Mat && e->Mat->Name == "water")
-            mWaterRitems.push_back(e.get());
+            //mWaterRitems.push_back(e.get())
+            ;
         else
             mOpaqueRitems.push_back(e.get());
     }
