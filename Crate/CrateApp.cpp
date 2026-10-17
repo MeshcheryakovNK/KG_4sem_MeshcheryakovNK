@@ -430,13 +430,13 @@ bool CrateApp::Initialize()
         ShadowSystem::kCascadeCount,
         mTextures["checkerTex"]->Resource.Get());
 
-    mParticleSystem = std::make_unique<ParticleSystem>();
-    mParticleSystem->Initialize(
-        md3dDevice.Get(),
-        mCommandList.Get(),
-        mSrvDescriptorHeap.Get(),
-        mCbvSrvDescriptorSize,
-        kParticleSrvHeapStartIndex);
+    //mParticleSystem = std::make_unique<ParticleSystem>();
+    //mParticleSystem->Initialize(
+    //    md3dDevice.Get(),
+    //    mCommandList.Get(),
+    //    mSrvDescriptorHeap.Get(),
+    //    mCbvSrvDescriptorSize,
+    //    kParticleSrvHeapStartIndex);
 
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
@@ -679,9 +679,9 @@ void CrateApp::Draw(const GameTimer& gt)
         mGeometryWireframe);
 
     DrawRenderItems(mCommandList.Get(), mSponzaOpaqueRitems);
-    if (!mStressVisibleRitems.empty())
+    /*if (!mStressVisibleRitems.empty())
         DrawRenderItems(mCommandList.Get(), mStressVisibleRitems);
-    DrawBillboardForest(mCommandList.Get());
+    DrawBillboardForest(mCommandList.Get());*/
 
     if (mParticleSystem)
     {
