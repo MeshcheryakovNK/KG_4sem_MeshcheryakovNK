@@ -100,6 +100,14 @@ uint SelectCascade(float viewDepth)
     return cascade;
 }
 
+static const float3 kCascadeColors[NUM_CASCADES] =
+{
+    float3(1.0f, 0.25f, 0.25f), // 0 - красный
+    float3(0.25f, 1.0f, 0.25f), // 1 - зелёный
+    float3(0.3f, 0.45f, 1.0f),  // 2 - синий
+    float3(1.0f, 1.0f, 0.25f),  // 3 - жёлтый
+};
+
 float SampleShadowCascade(uint cascade, float3 samplePosW, float3 biasNormal)
 {
     float3 lightDir = normalize(-gLightDirectionW);
@@ -226,6 +234,9 @@ float4 PS(VSOut pin) : SV_Target
     {
         lighting += ComputeSpot(gLights[NUM_DIR_LIGHTS + NUM_POINT_LIGHTS + spLi], posW, normal, toEye, albedo.rgb, fresnelR0, roughness);
     }
+
+    const uint cascade = SelectCascade(GetViewDepth(posW));
+    lighting = lerp(lighting, lighting * kCascadeColors[cascade] * 2.0f, 0.6f);
 
     return float4(lighting, albedo.a);
 }
