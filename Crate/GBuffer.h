@@ -1,0 +1,57 @@
+#pragma once
+
+#include "../Common/d3dUtil.h"
+
+class GBuffer
+{
+public:
+    static constexpr UINT BufferCount = 4;
+    static constexpr UINT ExtraLightingSrvCount = 3;
+    static constexpr UINT ExtraPostSrvCount = 2;
+    static constexpr UINT ExtraSrvCount = ExtraLightingSrvCount + ExtraPostSrvCount;
+    static constexpr UINT PostSceneSrvIndex = BufferCount + ExtraLightingSrvCount;
+    static constexpr UINT PostTempSrvIndex = BufferCount + ExtraLightingSrvCount + 1;
+    static constexpr UINT TotalSrvCount = BufferCount + ExtraSrvCount;
+
+    static constexpr DXGI_FORMAT AlbedoFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    static constexpr DXGI_FORMAT NormalFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    static constexpr DXGI_FORMAT MaterialFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    static constexpr DXGI_FORMAT PositionFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+public:
+    void Initialize(ID3D12Device* device, UINT width, UINT height);
+    void OnResize(UINT width, UINT height);
+
+    void TransitionToRenderTargets(ID3D12GraphicsCommandList* cmdList);
+    void TransitionToShaderResources(ID3D12GraphicsCommandList* cmdList);
+    void Clear(ID3D12GraphicsCommandList* cmdList);
+
+    D3D12_CPU_DESCRIPTOR_HANDLE GetRtv(UINT index) const;
+    D3D12_CPU_DESCRIPTOR_HANDLE GetSrvCpu(UINT index) const;
+    D3D12_GPU_DESCRIPTOR_HANDLE GetSrvGpu(UINT index) const;
+    ID3D12DescriptorHeap* GetSrvHeap() const { return mSrvHeap.Get(); }
+
+private:
+    void BuildResources();
+    void BuildDescriptors();
+
+private:
+    ID3D12Device* mDevice = nullptr;
+    UINT mWidth = 1;
+    UINT mHeight = 1;
+
+    DXGI_FORMAT mFormats[BufferCount] =
+    {
+        AlbedoFormat,
+        NormalFormat,
+        MaterialFormat,
+        PositionFormat
+    };
+
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvHeap = nullptr;
+    UINT mRtvDescriptorSize = 0;
+    UINT mSrvDescriptorSize = 0;
+
+    Microsoft::WRL::ComPtr<ID3D12Resource> mBuffers[BufferCount];
+};
